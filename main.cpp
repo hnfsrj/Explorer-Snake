@@ -6,6 +6,92 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include <thread>
+
+#include <filesystem>
+#include <random>
+#include <fstream>
+
+
+
+int random_generator(int max){
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    std::uniform_int_distribution<> dis(0, (max-1));
+
+    return dis(gen);
+}
+
+
+
+void initialize(int width, int height){
+    // remove and create the screen folder
+
+    std::filesystem::path dir{"screen"};
+
+    std::filesystem::remove_all(dir);
+
+    std::filesystem::create_directory(dir);
+
+    //generate the head location
+
+    int head_y = random_generator(height);
+    int head_x = random_generator(width);
+
+    //generate the apple location
+
+    int apple_y = random_generator(height);
+    int apple_x = random_generator(width);
+
+    while (apple_y == head_y && apple_x == head_x){
+        apple_y = random_generator(height);
+        apple_x = random_generator(width);
+    }
+
+
+    //generate the head and apple
+
+    std::filesystem::path from{"assets/head.png"};
+    std::filesystem::path to{"screen/head.png"};
+
+    std::filesystem::copy_file(from, to);
+
+    from = "assets/apple.png";
+    to = "screen/apple.png";
+
+    std::filesystem::copy_file(from, to);
+
+    std::string hx,hy,ax,ay;
+
+    hx = std::to_string(head_x);
+    hy = std::to_string(head_y);
+    ax = std::to_string(apple_x);
+    ay = std::to_string(apple_y);
+
+    // std::cout<<"screen/" + hy + hx + "0.png";
+    rename("screen/head.png",("screen/" + hy + hx + "0.png").c_str());
+    rename("screen/apple.png",("screen/" + ay + ax + "2.png").c_str());
+
+    //generate the txt files
+
+    for(int w = 0;w<width;w++){
+        for(int h = 0;h<height;h++){
+            if (!(w == head_x && h == head_y) && !(w == apple_x && h == apple_y)){
+
+                //create the txt file
+                std::string file_path = "screen/" + std::to_string(h) + std::to_string(w) + "1.txt";
+
+                std::ofstream(file_path).close();
+                
+            }
+
+        }
+    }
+
+
+}
+
 
 
 
@@ -58,8 +144,33 @@ class Segment{
 };
 
 
+class Apple{
+    public:
 
-void keylogger(termios& oldTerm, termios& newTerm){
+    int y;
+    int x;
+
+    void reposition(){
+
+    }
+
+
+};
+
+
+
+
+
+// bool collision(Apple apple){
+
+//     if(moves[0].x == apple.x && moves[0].y == apple.y) return true;
+
+//     return false;
+// }
+
+
+
+void keylogger(termios& oldTerm, termios& newTerm, Segment& segment){
 
     tcgetattr(STDIN_FILENO, &oldTerm);
     newTerm = oldTerm;
@@ -86,16 +197,20 @@ void keylogger(termios& oldTerm, termios& newTerm){
             if (seq[0] == '[') {
                 switch (seq[1]) {
                     case 'A':
-                        std::cout << "Up arrow key pressed" << std::endl;
+                        // std::cout << "Up arrow key pressed" << std::flush;
+                        segment.move("up");
                         break;
                     case 'B':
-                        std::cout << "Down arrow key pressed" << std::endl;
+                        // std::cout << "Down arrow key pressed" << std::flush;
+                        segment.move("down");
                         break;
                     case 'C':
-                        std::cout << "Right arrow key pressed" << std::endl;
+                        // std::cout << "Right arrow key pressed" << std::flush;
+                        segment.move("right");
                         break;
                     case 'D':
-                        std::cout << "Left arrow key pressed" << std::endl;
+                        // std::cout << "Left arrow key pressed" << std::flush;
+                        segment.move("left");
                         break;
                 }
             }
@@ -106,16 +221,18 @@ void keylogger(termios& oldTerm, termios& newTerm){
                 break;
             }
         }
+
+        // std::this_thread::yield();
     }
 }
 
 
 
 
-void beforeExit(termios& oldTerm){
+void beforeExit(termios& oldTerm, std::thread& t){
 
+    t.join();
     tcsetattr(STDIN_FILENO, TCSANOW, &oldTerm);
-
 }
 
 
@@ -126,18 +243,32 @@ int main(){
 
     // Segment segment;
     // segment.y = 1;
-    // segment.x = 2;
+    // segment.x = 1;
 
-    // segment.move("left");
+    int width,height;
+
+    width = 5;
+    height = 6;
+
+    initialize(width,height);
+
+
+    // Apple apple;
 
 
 
-    struct termios oldTerm, newTerm;
 
-    keylogger(oldTerm, newTerm);
 
+
+
+
+
+    // struct termios oldTerm, newTerm;
+
+    // std::thread t(keylogger, std::ref(oldTerm), std::ref(newTerm), std::ref(segment));    
+   
     
-    beforeExit(oldTerm);
+    // beforeExit(oldTerm, std::ref(t));
 
     return 0;
 }
