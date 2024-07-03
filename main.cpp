@@ -116,13 +116,12 @@ class Segment{
 
     public:
 
-        int y, x;
-
-        int move_reader = 0;
+        int y, x, move_reader;
         
-        Segment(int y_val, int x_val){
+        Segment(int y_val, int x_val, int reader){
             y = y_val;
             x = x_val;
+            move_reader = reader;
         }
 
         void move(directions direction){
@@ -210,7 +209,7 @@ class Apple{
 
 
 
-void collision(int head_y, int head_x, int apple_y, int apple_x, Apple& apple, directions direction, std::vector<Segment> segments, int width, int height){
+bool collision(int head_y, int head_x, int apple_y, int apple_x, Apple& apple, directions direction, std::vector<Segment> segments, int width, int height){
             
     if (direction == Up){
         head_y--;
@@ -259,8 +258,11 @@ void collision(int head_y, int head_x, int apple_y, int apple_x, Apple& apple, d
             apple.reposition(new_apple_y, new_apple_x);
 
         }
-    
+
+        return true;
     }
+
+    return false;
 
 }
 
@@ -353,13 +355,44 @@ void renderer(std::vector<directions>& moves, std::vector<Segment>& segments, Ap
         watching++;
 
         //check if the head is going to collide with the apple and take action
-        collision(segments[0].y, segments[0].x, apple.y, apple.x, apple, moves[moves.size()-1],segments, width, height);
+        bool add = collision(segments[0].y, segments[0].x, apple.y, apple.x, apple, moves[moves.size()-1],segments, width, height);
 
+
+        // save the location of the last segment for the new segment
+
+        int the_y, the_x;
+        std::string new_segment_name, tobe_removed;
+
+        if(add){
+
+            the_y = segments[segments.size()-1].y;
+            the_x = segments[segments.size()-1].x;
+            new_segment_name = "screen/" + std::to_string(the_y) + std::to_string(the_x) + "0.png";
+            tobe_removed = "screen/" + std::to_string(the_y) + std::to_string(the_x) + "1.txt";
+        }
+
+
+
+        //move the segments
 
         for (int s=0;s<segments.size();s++){
             segments[s].move(moves[segments[s].move_reader]); //move to the direction respective to its own position in the series of moves
         }
 
+
+        //add new segment if collision happened
+
+        if(add){
+            std::filesystem::path asset_from{"assets/head.png"};
+            std::filesystem::path asset_to{"screen/head.png"};
+            std::filesystem::copy_file(asset_from, asset_to);
+
+            rename("screen/head.png", new_segment_name.c_str());
+
+            std::remove(tobe_removed.c_str());
+            
+            segments.push_back(Segment(the_y, the_x, moves.size()-segments.size()));
+        }
 
 
         std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -392,7 +425,7 @@ int main(){
 
     std::vector<directions> moves;
 
-    segments.push_back(Segment(pos[0], pos[1]));
+    segments.push_back(Segment(pos[0], pos[1], 0));
 
 
     Apple apple(pos[2], pos[3]);
