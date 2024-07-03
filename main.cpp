@@ -12,7 +12,14 @@
 #include <random>
 #include <fstream>
 
+#include <chrono>
 
+
+
+
+enum directions{
+    Up, Down, Right, Left
+};
 
 int random_generator(int max){
     std::random_device rd;
@@ -25,7 +32,7 @@ int random_generator(int max){
 
 
 
-void initialize(int width, int height){
+void initialize(int width, int height, int pos[2]){
     // remove and create the screen folder
 
     std::filesystem::path dir{"screen"};
@@ -36,8 +43,14 @@ void initialize(int width, int height){
 
     //generate the head location
 
-    int head_y = random_generator(height);
-    int head_x = random_generator(width);
+    // int head_y = random_generator(height);
+    int head_y = 1;
+
+    // int head_x = random_generator(width);
+    int head_x = 1;
+
+    pos[0] = head_y;
+    pos[1] = head_x;
 
     //generate the apple location
 
@@ -98,48 +111,58 @@ void initialize(int width, int height){
 
 class Segment{
 
+    int y, x;
+
     public:
-    int y;
-    int x;
 
-    void move(std::string direction){
-
-        std::string from, to;
-
-        from = std::to_string(y) + std::to_string(x);
-
-
-
-        if (direction == "up"){
-            to = std::to_string(--y) + std::to_string(x);
-
-        }else if (direction == "down"){
-            to = std::to_string(++y) + std::to_string(x);
-
-        }else if (direction == "right"){
-            to = std::to_string(y) + std::to_string(++x);
-
-        }else if (direction == "left"){
-            to = std::to_string(y) + std::to_string(--x);
-
-        }else{
-            std::cout<<"invalid parameter";
+        int move_reader = 0;
+        
+        Segment(int y_val, int x_val){
+            y = y_val;
+            x = x_val;
         }
 
+        void move(directions direction){
 
-        std::string completeFromPath, completeToPath, reverseFrom, reverseTo;
+            std::string from, to;
+
+            from = std::to_string(y) + std::to_string(x);
 
 
-        completeFromPath = "screen/" + from + "0.png";
-        completeToPath = "screen/" + to + "0.png";
 
-        reverseFrom = "screen/" + to + "1";
-        reverseTo = "screen/" + from + "1";
+            if (direction == Up){
+                to = std::to_string(--y) + std::to_string(x);
 
-        rename(completeFromPath.c_str(), completeToPath.c_str());
+            }else if (direction == Down){
+                to = std::to_string(++y) + std::to_string(x);
 
-        rename(reverseFrom.c_str(), reverseTo.c_str());
-    }
+            }else if (direction == Right){
+                to = std::to_string(y) + std::to_string(++x);
+
+            }else if (direction == Left){
+                to = std::to_string(y) + std::to_string(--x);
+
+            }else{
+                std::cout<<"invalid parameter";
+            }
+
+
+            std::string completeFromPath, completeToPath, reverseFrom, reverseTo;
+
+
+            completeFromPath = "screen/" + from + "0.png";
+            completeToPath = "screen/" + to + "0.png";
+
+            reverseFrom = "screen/" + to + "1.txt";
+            reverseTo = "screen/" + from + "1.txt";
+
+            rename(completeFromPath.c_str(), completeToPath.c_str());
+
+            rename(reverseFrom.c_str(), reverseTo.c_str());
+
+
+            move_reader++;
+        }
 
 };
 
@@ -170,7 +193,7 @@ class Apple{
 
 
 
-void keylogger(termios& oldTerm, termios& newTerm, Segment& segment){
+void keylogger(termios& oldTerm, termios& newTerm, std::vector<directions>& moves){
 
     tcgetattr(STDIN_FILENO, &oldTerm);
     newTerm = oldTerm;
@@ -198,19 +221,19 @@ void keylogger(termios& oldTerm, termios& newTerm, Segment& segment){
                 switch (seq[1]) {
                     case 'A':
                         // std::cout << "Up arrow key pressed" << std::flush;
-                        segment.move("up");
+                        moves.push_back(Up);
                         break;
                     case 'B':
                         // std::cout << "Down arrow key pressed" << std::flush;
-                        segment.move("down");
+                        moves.push_back(Down);
                         break;
                     case 'C':
                         // std::cout << "Right arrow key pressed" << std::flush;
-                        segment.move("right");
+                        moves.push_back(Right);
                         break;
                     case 'D':
                         // std::cout << "Left arrow key pressed" << std::flush;
-                        segment.move("left");
+                        moves.push_back(Left);
                         break;
                 }
             }
@@ -228,6 +251,53 @@ void keylogger(termios& oldTerm, termios& newTerm, Segment& segment){
 
 
 
+void renderer(std::vector<directions>& moves, std::vector<Segment>& segments){
+    
+    int watching = 0;
+
+    while (true){
+
+        //adding the next move to be executed
+
+        if (moves.empty()){
+            
+            //this runs when there is nothing in moves i.e when the game starts.
+            moves.push_back(Right);
+            std::cout<< "empty:right" << std::flush;
+        }else{
+            
+            if (moves.size() <= watching){
+                //this will run when there is no user input for direction
+
+                moves.push_back(moves[moves.size()-1]); //same direction as the last one
+                std::cout<< "no input:right" << std::flush;
+            }else{
+
+                std::cout<< "input" << std::flush;
+            }
+            
+            //no need to auto add a move when there has been an input from the user
+
+            
+
+        }
+
+        watching++;
+
+
+
+        for (int s=0;s<segments.size();s++){
+            segments[s].move(moves[segments[s].move_reader]); //move to the direction respective to its own position in the series of moves
+        }
+
+
+
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+
+}
+
+
 
 void beforeExit(termios& oldTerm, std::thread& t){
 
@@ -238,19 +308,21 @@ void beforeExit(termios& oldTerm, std::thread& t){
 
 int main(){
 
-    // rename("screen/010.png","screen/110.png");
-
-
-    // Segment segment;
-    // segment.y = 1;
-    // segment.x = 1;
-
     int width,height;
 
     width = 5;
     height = 6;
 
-    initialize(width,height);
+    int pos[2];
+
+    // initialize the playground
+    initialize(width,height,pos);
+
+    std::vector<Segment> segments;
+
+    std::vector<directions> moves;
+
+    segments.push_back(Segment(pos[0], pos[1]));
 
 
     // Apple apple;
@@ -258,17 +330,15 @@ int main(){
 
 
 
+    struct termios oldTerm, newTerm;
 
-
-
-
-
-    // struct termios oldTerm, newTerm;
-
-    // std::thread t(keylogger, std::ref(oldTerm), std::ref(newTerm), std::ref(segment));    
+    std::thread t(keylogger, std::ref(oldTerm), std::ref(newTerm), std::ref(moves));    
    
+
+
+    renderer(moves, segments);
     
-    // beforeExit(oldTerm, std::ref(t));
+    beforeExit(oldTerm, std::ref(t));
 
     return 0;
 }
