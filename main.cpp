@@ -32,7 +32,7 @@ int random_generator(int max){
 
 
 
-void initialize(int width, int height, int pos[2]){
+void initialize(int width, int height, int pos[4]){
     // remove and create the screen folder
 
     std::filesystem::path dir{"screen"};
@@ -61,6 +61,9 @@ void initialize(int width, int height, int pos[2]){
         apple_y = random_generator(height);
         apple_x = random_generator(width);
     }
+
+    pos[2] = apple_y;
+    pos[3] = apple_x;
 
 
     //generate the head and apple
@@ -111,9 +114,9 @@ void initialize(int width, int height, int pos[2]){
 
 class Segment{
 
-    int y, x;
-
     public:
+
+        int y, x;
 
         int move_reader = 0;
         
@@ -168,14 +171,37 @@ class Segment{
 
 
 class Apple{
+
     public:
 
-    int y;
-    int x;
+        int y,x;
 
-    void reposition(){
 
-    }
+        Apple(int y_val, int x_val){
+            y = y_val;
+            x = x_val;
+        }
+
+
+        void reposition(int new_apple_y, int new_apple_x){
+            std::string from, to, completeFromPath, completeToPath, reverseFrom, reverseTo;
+
+            from = std::to_string(y) + std::to_string(x);
+            to = std::to_string(new_apple_y) + std::to_string(new_apple_x);
+
+            completeFromPath = "screen/" + from + "2.png";
+            completeToPath = "screen/" + to + "2.png";
+
+            reverseFrom = "screen/" + to + "1.txt";
+            reverseTo = "screen/" + from + "1.txt";
+
+            y = new_apple_y;
+            x = new_apple_x;
+
+            rename(completeFromPath.c_str(), completeToPath.c_str());
+            rename(reverseFrom.c_str(), reverseTo.c_str());
+
+        }
 
 
 };
@@ -184,12 +210,59 @@ class Apple{
 
 
 
-// bool collision(Apple apple){
+void collision(int head_y, int head_x, int apple_y, int apple_x, Apple& apple, directions direction, std::vector<Segment> segments, int width, int height){
+            
+    if (direction == Up){
+        head_y--;
 
-//     if(moves[0].x == apple.x && moves[0].y == apple.y) return true;
+    }else if (direction == Down){
+        head_y++;
 
-//     return false;
-// }
+    }else if (direction == Right){
+        head_x++;
+
+    }else if (direction == Left){
+        head_x--;
+
+    }
+
+    if (apple_y == head_y && apple_x == head_x){
+        //collision will happen on this next move
+
+        bool generate = true;
+        int new_apple_y, new_apple_x;
+
+        while (generate){
+            new_apple_y = random_generator(height);
+            new_apple_x = random_generator(width);
+
+            if (!(new_apple_y == apple_y && new_apple_x == apple_x)){
+
+                generate = false;
+            }else{
+
+                for (int s=0;s<segments.size();s++){
+
+                    if (new_apple_y == segments[s].y && new_apple_x == segments[s].x){
+                        generate = true;
+                        break;
+                    }else{
+                        generate = false;
+                    }
+
+                }
+
+            }
+
+            // set new apple position
+
+            apple.reposition(new_apple_y, new_apple_x);
+
+        }
+    
+    }
+
+}
 
 
 
@@ -251,7 +324,7 @@ void keylogger(termios& oldTerm, termios& newTerm, std::vector<directions>& move
 
 
 
-void renderer(std::vector<directions>& moves, std::vector<Segment>& segments){
+void renderer(std::vector<directions>& moves, std::vector<Segment>& segments, Apple& apple, int width, int height){
     
     int watching = 0;
 
@@ -263,17 +336,12 @@ void renderer(std::vector<directions>& moves, std::vector<Segment>& segments){
             
             //this runs when there is nothing in moves i.e when the game starts.
             moves.push_back(Right);
-            std::cout<< "empty:right" << std::flush;
         }else{
             
             if (moves.size() <= watching){
                 //this will run when there is no user input for direction
 
                 moves.push_back(moves[moves.size()-1]); //same direction as the last one
-                std::cout<< "no input:right" << std::flush;
-            }else{
-
-                std::cout<< "input" << std::flush;
             }
             
             //no need to auto add a move when there has been an input from the user
@@ -284,6 +352,8 @@ void renderer(std::vector<directions>& moves, std::vector<Segment>& segments){
 
         watching++;
 
+        //check if the head is going to collide with the apple and take action
+        collision(segments[0].y, segments[0].x, apple.y, apple.x, apple, moves[moves.size()-1],segments, width, height);
 
 
         for (int s=0;s<segments.size();s++){
@@ -313,7 +383,7 @@ int main(){
     width = 5;
     height = 6;
 
-    int pos[2];
+    int pos[4];
 
     // initialize the playground
     initialize(width,height,pos);
@@ -325,7 +395,7 @@ int main(){
     segments.push_back(Segment(pos[0], pos[1]));
 
 
-    // Apple apple;
+    Apple apple(pos[2], pos[3]);
 
 
 
@@ -336,7 +406,7 @@ int main(){
    
 
 
-    renderer(moves, segments);
+    renderer(moves, segments, apple, width, height);
     
     beforeExit(oldTerm, std::ref(t));
 
