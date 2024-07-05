@@ -13,6 +13,7 @@
 #include <fstream>
 
 #include <chrono>
+#include <mutex>
 
 
 
@@ -110,6 +111,12 @@ void initialize(int width, int height, int pos[4]){
 
 
 
+
+void add_move(std::mutex& mtx,std::vector<directions>& moves, directions the_move){
+    mtx.lock();
+    moves.push_back(the_move);
+    mtx.unlock();
+}
 
 
 class Segment{
@@ -268,7 +275,7 @@ bool collision(int head_y, int head_x, int apple_y, int apple_x, Apple& apple, d
 
 
 
-void keylogger(termios& oldTerm, termios& newTerm, std::vector<directions>& moves){
+void keylogger(termios& oldTerm, termios& newTerm, std::vector<directions>& moves, std::mutex& mtx){
 
     tcgetattr(STDIN_FILENO, &oldTerm);
     newTerm = oldTerm;
@@ -296,19 +303,23 @@ void keylogger(termios& oldTerm, termios& newTerm, std::vector<directions>& move
                 switch (seq[1]) {
                     case 'A':
                         // std::cout << "Up arrow key pressed" << std::flush;
-                        moves.push_back(Up);
+                        // moves.push_back(Up);
+                        add_move(mtx,moves,Up);
                         break;
                     case 'B':
                         // std::cout << "Down arrow key pressed" << std::flush;
-                        moves.push_back(Down);
+                        // moves.push_back(Down);
+                        add_move(mtx,moves,Down);
                         break;
                     case 'C':
                         // std::cout << "Right arrow key pressed" << std::flush;
-                        moves.push_back(Right);
+                        // moves.push_back(Right);
+                        add_move(mtx,moves,Right);
                         break;
                     case 'D':
                         // std::cout << "Left arrow key pressed" << std::flush;
-                        moves.push_back(Left);
+                        // moves.push_back(Left);
+                        add_move(mtx,moves,Left);
                         break;
                 }
             }
@@ -326,7 +337,7 @@ void keylogger(termios& oldTerm, termios& newTerm, std::vector<directions>& move
 
 
 
-void renderer(std::vector<directions>& moves, std::vector<Segment>& segments, Apple& apple, int width, int height){
+void renderer(std::vector<directions>& moves, std::vector<Segment>& segments, Apple& apple, int width, int height, std::mutex& mtx){
     
     int watching = 0;
 
@@ -337,13 +348,15 @@ void renderer(std::vector<directions>& moves, std::vector<Segment>& segments, Ap
         if (moves.empty()){
             
             //this runs when there is nothing in moves i.e when the game starts.
-            moves.push_back(Right);
+            // moves.push_back(Right);
+            add_move(mtx,moves,Right);
         }else{
             
             if (moves.size() <= watching){
                 //this will run when there is no user input for direction
 
-                moves.push_back(moves[moves.size()-1]); //same direction as the last one
+                // moves.push_back(moves[moves.size()-1]); //same direction as the last one
+                add_move(mtx,moves,moves[moves.size()-1]);
             }
             
             //no need to auto add a move when there has been an input from the user
@@ -396,6 +409,7 @@ void renderer(std::vector<directions>& moves, std::vector<Segment>& segments, Ap
 
 
         std::this_thread::sleep_for(std::chrono::seconds(1));
+        // std::this_thread::sleep_for(std::chrono::milliseconds(800));
     }
 
 }
@@ -431,15 +445,16 @@ int main(){
     Apple apple(pos[2], pos[3]);
 
 
+    std::mutex mtx; // to prevent race condition between the two threads
 
 
     struct termios oldTerm, newTerm;
 
-    std::thread t(keylogger, std::ref(oldTerm), std::ref(newTerm), std::ref(moves));    
+    std::thread t(keylogger, std::ref(oldTerm), std::ref(newTerm), std::ref(moves), std::ref(mtx));    
    
 
 
-    renderer(moves, segments, apple, width, height);
+    renderer(moves, segments, apple, width, height, mtx);
     
     beforeExit(oldTerm, std::ref(t));
 
